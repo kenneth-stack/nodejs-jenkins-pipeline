@@ -49,8 +49,11 @@ pipeline {
                         // Create the directory on EC2
                         sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'mkdir -p ${APP_DIR}'"
                         
-                        // Copy files to EC2
-                        sh "scp -i temp_ssh_key -o StrictHostKeyChecking=no -r * ${EC2_USER}@${EC2_HOST}:${APP_DIR}"
+                        // Copy files to EC2 using rsync with exclusions
+                        sh """
+                            rsync -avz -e "ssh -i temp_ssh_key -o StrictHostKeyChecking=no" \
+                                --exclude 'node_modules' --exclude '.git' ./ ${EC2_USER}@${EC2_HOST}:${APP_DIR}/
+                        """
                         
                         // Connect to EC2 and deploy the application
                         sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '${remoteCommand}'"
