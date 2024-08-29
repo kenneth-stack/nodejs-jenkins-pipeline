@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     tools {
-        // Specify the name used in the NodeJS plugin configuration
         nodejs 'nodejs'  // This should match the name you provided in the NodeJS plugin configuration
     }
 
@@ -21,45 +20,34 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                script {
-                    sh 'npm install'
-                }
+                sh 'npm install'
             }
         }
 
         stage('Test') {
             steps {
-                script {
-                    sh 'npm test'
-                }
+                sh 'npm test'
             }
         }
 
         stage('Deploy to EC2') {
             steps {
                 script {
-                    withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
-                        def keyFile = "${env.WORKSPACE}/ec2-key.pem"
-                        writeFile file: keyFile, text: SSH_KEY
-                        sh "chmod 600 ${keyFile}"
-
-                        // Copy files to EC2
-                        sh """
-                        scp -i ${keyFile} -o StrictHostKeyChecking=no -r * ${SSH_USER}@${EC2_HOST}:${APP_DIR}
+                    withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY')]) {
+                        def remoteCommand = """
+                            cd ${APP_DIR}
+                            npm install --production
+                            pm2 stop all || true
+                            pm2 start app.js --name "node-app"
                         """
-
-                        // Connect to EC2 and deploy the application
-                        sh """
-                        ssh -i ${keyFile} -o StrictHostKeyChecking=no ${SSH_USER}@${EC2_HOST} << EOF
-                        cd ${APP_DIR}
-                        npm install --production
-                        pm2 stop all || true
-                        pm2 start app.js --name "node-app"
-                        EOF
-                        """
-
-                        // Clean up the SSH key
-                        sh "rm -f ${keyFile}"
+                        
+                        sshagent(['ec2-ssh-key']) {
+                            // Copy files to EC2
+                            sh "scp -o StrictHostKeyChecking=no -r * ${EC2_USER}@${EC2_HOST}:${APP_DIR}"
+                            
+                            // Connect to EC2 and deploy the application
+                            sh "ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '${remoteCommand}'"
+                        }
                     }
                 }
             }
