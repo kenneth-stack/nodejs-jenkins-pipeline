@@ -34,28 +34,15 @@ pipeline {
             steps {
                 script {
                     withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY')]) {
-                        def remoteCommand = """
-                            mkdir -p ${APP_DIR}
-                            cd ${APP_DIR}
-                            npm install --production
-                            pm2 stop all || true
-                            pm2 start app.js --name "node-app"
-                        """
-                        
                         // Write the SSH key to a temporary file
                         writeFile file: 'temp_ssh_key', text: readFile(SSH_KEY)
                         sh 'chmod 600 temp_ssh_key'
-
-
-                        // Install Node.js and PM2 on EC2
-                        sh """
-                            ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << 'EOF'
-                                curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
-                                sudo apt-get install -y nodejs
-                                sudo npm install -g pm2
-                            EOF
-                        """
                         
+                        // Install Node.js and PM2 on EC2
+                        sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -'"
+                        sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'sudo apt-get install -y nodejs'"
+                        sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'sudo npm install -g pm2'"
+
                         // Create the directory on EC2
                         sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'mkdir -p ${APP_DIR}'"
                         
@@ -66,7 +53,7 @@ pipeline {
                         """
                         
                         // Connect to EC2 and deploy the application
-                        sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '${remoteCommand}'"
+                        sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'cd ${APP_DIR} && npm install --production && pm2 stop all || true && pm2 start app.js --name \"node-app\"'"
                         
                         // Remove the temporary SSH key file
                         sh 'rm -f temp_ssh_key'
