@@ -8,8 +8,7 @@ pipeline {
 
     environment {
         EC2_USER = 'ubuntu'
-        EC2_HOST = credentials('ec2-host-ip')  // Use Jenkins credentials for the host IP
-        SSH_KEY = credentials('ec2-ssh-key')   // Use Jenkins credentials for the SSH key
+        EC2_HOST =  '18.223.209.120' // Use Jenkins credentials for the host IP
         APP_DIR = '/var/www/nodejs-jenkins-pipeline'
     }
 
@@ -43,7 +42,7 @@ pipeline {
                 script {
                     // Write the SSH key to a temporary file
                     def keyFile = "${env.WORKSPACE}/ec2-key.pem"
-                    writeFile file: keyFile, text: SSH_KEY
+                    writeFile file: keyFile, text: credentials('ec2-ssh-key') // Ensure 'ec2-ssh-key' matches the ID in Jenkins credentials
                     sh "chmod 600 ${keyFile}"
 
                     // Copy files to EC2
