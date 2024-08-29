@@ -4,9 +4,10 @@ pipeline {
     environment {
         NODE_VERSION = '18.x'
         EC2_USER = 'ubuntu'
-        EC2_HOST = credentials('ec2-host-ip')  // Use Jenkins credentials
-        SSH_KEY = credentials('ec2-ssh-key')   // Use Jenkins credentials
+        EC2_HOST = credentials('ec2-host-ip')  // Use Jenkins credentials for the host IP
+        SSH_KEY = credentials('ec2-ssh-key')   // Use Jenkins credentials for the SSH key
         APP_DIR = '/var/www/nodejs-jenkins-pipeline'
+        NVM_DIR = "${env.HOME}/.nvm"           // NVM directory
     }
 
     stages {
@@ -16,12 +17,16 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies Locally') {
+        stage('Install NVM and Dependencies') {
             steps {
                 script {
-                    sh 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.4/install.sh | bash'
-                    sh '. ~/.nvm/nvm.sh && nvm install ${NODE_VERSION}'
-                    sh '. ~/.nvm/nvm.sh && nvm use ${NODE_VERSION} && npm install'
+                    sh '''
+                        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.4/install.sh | bash
+                        . "$NVM_DIR/nvm.sh"
+                        nvm install ${NODE_VERSION}
+                        nvm use ${NODE_VERSION}
+                        npm install
+                    '''
                 }
             }
         }
@@ -29,7 +34,11 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    sh '. ~/.nvm/nvm.sh && nvm use ${NODE_VERSION} && npm test'
+                    sh '''
+                        . "$NVM_DIR/nvm.sh"
+                        nvm use ${NODE_VERSION}
+                        npm test
+                    '''
                 }
             }
         }
@@ -37,19 +46,31 @@ pipeline {
         stage('Deploy to EC2') {
             steps {
                 script {
+                    // Write the SSH key to a temporary file
+                    def keyFile = "${env.WORKSPACE}/ec2-key.pem"
+                    writeFile file: keyFile, text: SSH_KEY
+                    sh "chmod 600 ${keyFile}"
+
+                    // Copy files to EC2
                     sh """
-                    scp -i ${SSH_KEY} -r * ${EC2_USER}@${EC2_HOST}:${APP_DIR}
+                    scp -i ${keyFile} -o StrictHostKeyChecking=no -r * ${EC2_USER}@${EC2_HOST}:${APP_DIR}
                     """
 
+                    // Connect to EC2 and deploy the application
                     sh """
-                    ssh -i ${SSH_KEY} ${EC2_USER}@${EC2_HOST} << EOF
+                    ssh -i ${keyFile} -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << EOF
                     cd ${APP_DIR}
-                    . ~/.nvm/nvm.sh && nvm install ${NODE_VERSION}
-                    . ~/.nvm/nvm.sh && nvm use ${NODE_VERSION} && npm install --production
+                    . "$NVM_DIR/nvm.sh"
+                    nvm install ${NODE_VERSION}
+                    nvm use ${NODE_VERSION}
+                    npm install --production
                     pm2 stop all || true
                     pm2 start index.js --name "node-app"
                     EOF
                     """
+
+                    // Clean up the SSH key
+                    sh "rm -f ${keyFile}"
                 }
             }
         }
