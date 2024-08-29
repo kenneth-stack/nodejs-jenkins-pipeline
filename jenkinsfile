@@ -45,6 +45,16 @@ pipeline {
                         // Write the SSH key to a temporary file
                         writeFile file: 'temp_ssh_key', text: readFile(SSH_KEY)
                         sh 'chmod 600 temp_ssh_key'
+
+
+                        // Install Node.js and PM2 on EC2
+                        sh """
+                            ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << 'EOF'
+                                curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+                                sudo apt-get install -y nodejs
+                                sudo npm install -g pm2
+                            EOF
+                        """
                         
                         // Create the directory on EC2
                         sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'mkdir -p ${APP_DIR}'"
