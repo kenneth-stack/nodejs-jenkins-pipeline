@@ -6,13 +6,13 @@ pipeline {
         EC2_USER = 'ubuntu'
         EC2_HOST = credentials('ec2-host-ip')  // Use Jenkins credentials
         SSH_KEY = credentials('ec2-ssh-key')   // Use Jenkins credentials
-        APP_DIR = '/var/www/node-app'
+        APP_DIR = '/var/www/nodejs-jenkins-pipeline'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/your-repo/node-app.git'
+                git branch: 'main', url: 'https://github.com/kenneth-stack/nodejs-jenkins-pipeline.git'
             }
         }
 
