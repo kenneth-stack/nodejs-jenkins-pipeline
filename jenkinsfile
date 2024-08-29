@@ -41,7 +41,7 @@ pipeline {
         stage('Deploy to EC2') {
             steps {
                 script {
-                    withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'SSH_KEY')]) {
+                    withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', variable: 'SSH_KEY')]) {
                         def keyFile = "${env.WORKSPACE}/ec2-key.pem"
 
                         // Write the SSH key to a temporary file
