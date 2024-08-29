@@ -2,19 +2,20 @@ pipeline {
     agent any
 
     tools {
-        // Specify the name used in the NodeJS plugin configuration
-        nodejs 'nodejs'  // This should match the name you provided in the NodeJS plugin configuration
+        // Specify the NodeJS tool configuration
+        nodejs 'nodejs'  // This should match the name used in the NodeJS plugin configuration
     }
 
     environment {
         EC2_USER = 'ubuntu'
-        EC2_HOST =  '18.223.209.120' // Use Jenkins credentials for the host IP
+        EC2_HOST = credentials('ec2-host-ip')  // Use Jenkins credentials for the host IP
         APP_DIR = '/var/www/nodejs-jenkins-pipeline'
     }
 
     stages {
         stage('Checkout') {
             steps {
+                // Checkout code from the Git repository
                 git branch: 'main', url: 'https://github.com/kenneth-stack/nodejs-jenkins-pipeline.git'
             }
         }
@@ -22,7 +23,7 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 script {
-                    // No need to install Node.js or nvm
+                    // Install npm dependencies
                     sh 'npm install'
                 }
             }
@@ -31,7 +32,7 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    // Run tests using the system-installed Node.js
+                    // Run tests
                     sh 'npm test'
                 }
             }
@@ -40,29 +41,33 @@ pipeline {
         stage('Deploy to EC2') {
             steps {
                 script {
-                    // Write the SSH key to a temporary file
-                    def keyFile = "${env.WORKSPACE}/ec2-key.pem"
-                    writeFile file: keyFile, text: credentials('ec2-ssh-key') // Ensure 'ec2-ssh-key' matches the ID in Jenkins credentials
-                    sh "chmod 600 ${keyFile}"
+                    withCredentials([file(credentialsId: 'ec2-ssh-key', variable: 'SSH_KEY')]) {
+                        def keyFile = "${env.WORKSPACE}/ec2-key.pem"
 
-                    // Copy files to EC2
-                    sh """
-                    scp -i ${keyFile} -o StrictHostKeyChecking=no -r * ${EC2_USER}@${EC2_HOST}:${APP_DIR}
-                    """
+                        // Write the SSH key to a temporary file
+                        writeFile file: keyFile, text: SSH_KEY
 
-                    // Connect to EC2 and deploy the application
-                    sh """
-                    ssh -i ${keyFile} -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << EOF
-                    cd ${APP_DIR}
-                    # No need to install Node.js or nvm on EC2 if system Node.js is used
-                    npm install --production
-                    pm2 stop all || true
-                    pm2 start index.js --name "node-app"
-                    EOF
-                    """
+                        // Set proper permissions for the SSH key
+                        sh "chmod 600 ${keyFile}"
 
-                    // Clean up the SSH key
-                    sh "rm -f ${keyFile}"
+                        // Copy files to EC2
+                        sh """
+                        scp -i ${keyFile} -o StrictHostKeyChecking=no -r * ${EC2_USER}@${EC2_HOST}:${APP_DIR}
+                        """
+
+                        // Connect to EC2 and deploy the application
+                        sh """
+                        ssh -i ${keyFile} -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << EOF
+                        cd ${APP_DIR}
+                        npm install --production
+                        pm2 stop all || true
+                        pm2 start app.js --name "node-app"
+                        EOF
+                        """
+
+                        // Clean up the SSH key
+                        sh "rm -f ${keyFile}"
+                    }
                 }
             }
         }
@@ -70,9 +75,11 @@ pipeline {
 
     post {
         success {
+            // Actions to perform on success
             echo 'Pipeline executed successfully!'
         }
         failure {
+            // Actions to perform on failure
             echo 'Pipeline failed!'
         }
     }
