@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    tools {
+        // Specify the name used in the NodeJS plugin configuration
+        nodejs 'nodejs'  // This should match the name you provided in the NodeJS plugin configuration
+    }
+
     environment {
         EC2_USER = 'ubuntu'
         EC2_HOST = credentials('ec2-host-ip')  // Use Jenkins credentials for the host IP
