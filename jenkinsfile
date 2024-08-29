@@ -35,6 +35,7 @@ pipeline {
                 script {
                     withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY')]) {
                         def remoteCommand = """
+                            mkdir -p ${APP_DIR}
                             cd ${APP_DIR}
                             npm install --production
                             pm2 stop all || true
@@ -44,6 +45,9 @@ pipeline {
                         // Write the SSH key to a temporary file
                         writeFile file: 'temp_ssh_key', text: readFile(SSH_KEY)
                         sh 'chmod 600 temp_ssh_key'
+                        
+                        // Create the directory on EC2
+                        sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'mkdir -p ${APP_DIR}'"
                         
                         // Copy files to EC2
                         sh "scp -i temp_ssh_key -o StrictHostKeyChecking=no -r * ${EC2_USER}@${EC2_HOST}:${APP_DIR}"
