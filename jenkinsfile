@@ -2,12 +2,10 @@ pipeline {
     agent any
 
     environment {
-        NODE_VERSION = '18.x'
         EC2_USER = 'ubuntu'
         EC2_HOST = credentials('ec2-host-ip')  // Use Jenkins credentials for the host IP
         SSH_KEY = credentials('ec2-ssh-key')   // Use Jenkins credentials for the SSH key
         APP_DIR = '/var/www/nodejs-jenkins-pipeline'
-        NVM_DIR = "${env.HOME}/.nvm"           // NVM directory
     }
 
     stages {
@@ -17,16 +15,11 @@ pipeline {
             }
         }
 
-        stage('Install NVM and Dependencies') {
+        stage('Install Dependencies') {
             steps {
                 script {
-                    sh '''
-                        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.4/install.sh | bash
-                        . "$NVM_DIR/nvm.sh"
-                        nvm install ${NODE_VERSION}
-                        nvm use ${NODE_VERSION}
-                        npm install
-                    '''
+                    // No need to install Node.js or nvm
+                    sh 'npm install'
                 }
             }
         }
@@ -34,11 +27,8 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    sh '''
-                        . "$NVM_DIR/nvm.sh"
-                        nvm use ${NODE_VERSION}
-                        npm test
-                    '''
+                    // Run tests using the system-installed Node.js
+                    sh 'npm test'
                 }
             }
         }
@@ -60,9 +50,7 @@ pipeline {
                     sh """
                     ssh -i ${keyFile} -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << EOF
                     cd ${APP_DIR}
-                    . "$NVM_DIR/nvm.sh"
-                    nvm install ${NODE_VERSION}
-                    nvm use ${NODE_VERSION}
+                    # No need to install Node.js or nvm on EC2 if system Node.js is used
                     npm install --production
                     pm2 stop all || true
                     pm2 start index.js --name "node-app"
