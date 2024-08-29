@@ -41,13 +41,18 @@ pipeline {
                             pm2 start app.js --name "node-app"
                         """
                         
-                        sshagent(['ec2-ssh-key']) {
-                            // Copy files to EC2
-                            sh "scp -o StrictHostKeyChecking=no -r * ${EC2_USER}@${EC2_HOST}:${APP_DIR}"
-                            
-                            // Connect to EC2 and deploy the application
-                            sh "ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '${remoteCommand}'"
-                        }
+                        // Write the SSH key to a temporary file
+                        writeFile file: 'temp_ssh_key', text: readFile(SSH_KEY)
+                        sh 'chmod 600 temp_ssh_key'
+                        
+                        // Copy files to EC2
+                        sh "scp -i temp_ssh_key -o StrictHostKeyChecking=no -r * ${EC2_USER}@${EC2_HOST}:${APP_DIR}"
+                        
+                        // Connect to EC2 and deploy the application
+                        sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '${remoteCommand}'"
+                        
+                        // Remove the temporary SSH key file
+                        sh 'rm -f temp_ssh_key'
                     }
                 }
             }
