@@ -7,8 +7,10 @@ pipeline {
 
     environment {
         EC2_USER = 'ubuntu'
-        EC2_HOST = '18.223.209.120' // Use the actual EC2 host IP or domain
+        EC2_HOST = '18.117.165.2' // Use the actual EC2 host IP or domain
         APP_DIR = '/home/ubuntu/nodejs-jenkins-pipeline'
+        APP_NAME = 'node-webapp'
+        APP_PORT = '5000'  // Make sure this matches the port in your app.js
     }
 
     stages {
@@ -20,7 +22,7 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                sh 'npm install'
+                sh 'npm ci'  // Using npm ci for more reliable installs
             }
         }
 
@@ -38,10 +40,18 @@ pipeline {
                         writeFile file: 'temp_ssh_key', text: readFile(SSH_KEY)
                         sh 'chmod 600 temp_ssh_key'
                         
-                        // Install Node.js and PM2 on EC2
-                        sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -'"
-                        sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'sudo apt-get install -y nodejs'"
-                        sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'sudo npm install -g pm2'"
+                        // Install Node.js and PM2 on EC2 (if not already installed)
+                        sh """
+                            ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
+                                if ! command -v node &> /dev/null; then
+                                    curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+                                    sudo apt-get install -y nodejs
+                                fi
+                                if ! command -v pm2 &> /dev/null; then
+                                    sudo npm install -g pm2
+                                fi
+                            '
+                        """
 
                         // Create the directory on EC2
                         sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'mkdir -p ${APP_DIR}'"
@@ -53,7 +63,27 @@ pipeline {
                         """
                         
                         // Connect to EC2 and deploy the application
-                        sh "ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} 'cd ${APP_DIR} && npm install --production && pm2 stop all || true && pm2 start app.js --name \"node-app\"'"
+                        sh """
+                            ssh -i temp_ssh_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} '
+                                cd ${APP_DIR}
+                                npm ci --production
+                                pm2 describe ${APP_NAME} > /dev/null
+                                if [ \$? -eq 0 ]; then
+                                    pm2 reload ${APP_NAME}
+                                else
+                                    pm2 start app.js --name "${APP_NAME}" -- --port ${APP_PORT}
+                                fi
+                                pm2 save
+                                
+                                # Check if the app is running
+                                if pm2 describe ${APP_NAME} | grep -q "online"; then
+                                    echo "Application ${APP_NAME} is running."
+                                else
+                                    echo "Failed to start application ${APP_NAME}."
+                                    exit 1
+                                fi
+                            '
+                        """
                         
                         // Remove the temporary SSH key file
                         sh 'rm -f temp_ssh_key'
@@ -72,3 +102,5 @@ pipeline {
         }
     }
 }
+
+Version 8 of 8
