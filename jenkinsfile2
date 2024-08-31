@@ -38,7 +38,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                    sudo docker build -t ${REPOSITORY_URI}:${IMAGE_TAG} .
+                    docker build -t ${REPOSITORY_URI}:${IMAGE_TAG} .
                     """
                 }
             }
