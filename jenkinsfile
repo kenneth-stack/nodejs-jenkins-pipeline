@@ -7,7 +7,7 @@ pipeline {
 
     environment {
         EC2_USER = 'ubuntu'
-        EC2_HOST = '18.117.165.2'
+        EC2_HOST = ''
         APP_DIR = '/home/ubuntu/nodejs-jenkins-pipeline'
         APP_NAME = 'node-app'
         APP_PORT = '5000'
